@@ -1,4 +1,4 @@
-"""CLI: PDF → MP3 (edge-tts o Azure Speech, español latino)."""
+"""CLI: PDF/DOCX → MP3 (edge-tts o Azure Speech, español latino)."""
 
 from pathlib import Path
 
@@ -15,12 +15,15 @@ def main() -> None:
 
 
 def _collect_pdfs(path: Path, recursive: bool) -> list[Path]:
-    """Devuelve la lista de PDFs a procesar (archivo único o carpeta)."""
+    """Devuelve la lista de documentos (PDF o DOCX) a procesar (archivo único o carpeta)."""
+    exts = {".pdf", ".docx"}
     if path.is_file():
-        return [path] if path.suffix.lower() == ".pdf" else []
+        return [path] if path.suffix.lower() in exts else []
     if path.is_dir():
-        pattern = "**/*.pdf" if recursive else "*.pdf"
-        return sorted(path.glob(pattern))
+        pattern = "**/*" if recursive else "*"
+        return sorted(
+            p for p in path.glob(pattern) if p.is_file() and p.suffix.lower() in exts
+        )
     return []
 
 
@@ -29,7 +32,7 @@ def _collect_pdfs(path: Path, recursive: bool) -> list[Path]:
     "input_path",
     type=click.Path(exists=True, path_type=Path),
     required=True,
-    metavar="PDF_OR_FOLDER",
+    metavar="FILE_OR_FOLDER",
 )
 @click.option(
     "-o",
@@ -111,7 +114,7 @@ def cli(
     recursive: bool,
 ) -> None:
     """
-    Convierte un PDF (o todos los PDFs de una carpeta) a MP3.
+    Convierte un PDF/DOCX (o todos los documentos de una carpeta) a MP3.
 
     Por defecto usa edge-tts (sin cuenta Azure). Usa --engine azure si
     prefieres Azure Speech (configura AZURE_SPEECH_KEY y AZURE_SPEECH_REGION).
@@ -120,7 +123,7 @@ def cli(
     if not pdf_files:
         click.echo(
             click.style(
-                "No se encontraron archivos PDF en la ruta indicada.",
+                "No se encontraron archivos PDF/DOCX en la ruta indicada.",
                 fg="red",
             ),
             err=True,
@@ -128,7 +131,7 @@ def cli(
         raise SystemExit(1)
 
     if len(pdf_files) > 1:
-        click.echo(f"Procesando {len(pdf_files)} archivos PDF...\n")
+        click.echo(f"Procesando {len(pdf_files)} archivos...\n")
 
     failed = 0
     for pdf_file in pdf_files:
@@ -177,7 +180,7 @@ def _process_one(
     preserve_line_breaks: bool,
     batch_mode: bool,
 ) -> None:
-    """Procesa un único PDF."""
+    """Procesa un único documento (PDF o DOCX)."""
     # En modo batch, -o y --text-output se ignoran; cada PDF usa su propia ruta
     if batch_mode:
         out_mp3 = pdf_file.with_suffix(".mp3")
@@ -191,18 +194,18 @@ def _process_one(
     if out_txt.suffix.lower() != ".txt":
         out_txt = out_txt.with_suffix(".txt")
 
-    click.echo(f"Leyendo PDF: {pdf_file}")
+    click.echo(f"Leyendo archivo: {pdf_file}")
     try:
         text = extract_text(pdf_file, normalize_for_speech=not preserve_line_breaks)
     except Exception as e:
         click.echo(
-            click.style(f"Error al leer el PDF: {e}", fg="red"), err=True
+            click.style(f"Error al leer el archivo: {e}", fg="red"), err=True
         )
         raise SystemExit(1) from e
 
     if not text.strip():
         click.echo(
-            click.style("El PDF no contiene texto extraíble.", fg="red"), err=True
+            click.style("El archivo no contiene texto extraíble.", fg="red"), err=True
         )
         raise SystemExit(1)
 

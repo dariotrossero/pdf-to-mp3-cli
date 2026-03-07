@@ -1,22 +1,37 @@
-"""Extrae texto de archivos PDF."""
+"""Extrae texto de archivos PDF y DOCX."""
 
 import re
 from pathlib import Path
 
 from pypdf import PdfReader
+from docx import Document
 
 
-def extract_text(pdf_path: str | Path, normalize_for_speech: bool = True) -> str:
+def extract_text(file_path: str | Path, normalize_for_speech: bool = True) -> str:
     """
-    Lee un PDF y devuelve todo el texto concatenado.
-    Por defecto normaliza el texto para TTS (evita pausas en saltos de línea).
+    Lee un PDF o DOCX y devuelve todo el texto concatenado.
+    Por defecto normaliza el texto para TTS
+    (evita pausas en saltos de línea).
     """
-    path = Path(pdf_path)
+    path = Path(file_path)
     if not path.exists():
         raise FileNotFoundError(f"No se encontró el archivo: {path}")
-    if path.suffix.lower() != ".pdf":
-        raise ValueError(f"El archivo no es un PDF: {path}")
 
+    suffix = path.suffix.lower()
+    if suffix == ".pdf":
+        raw = _extract_pdf_text(path)
+    elif suffix == ".docx":
+        raw = _extract_docx_text(path)
+    else:
+        raise ValueError(f"El archivo no es un PDF ni un DOCX: {path}")
+
+    if normalize_for_speech:
+        return _normalize_text(raw)
+    return _minimal_clean(raw)
+
+
+def _extract_pdf_text(path: Path) -> str:
+    """Extrae texto de un PDF."""
     reader = PdfReader(path)
     parts = []
     for page in reader.pages:
@@ -24,8 +39,17 @@ def extract_text(pdf_path: str | Path, normalize_for_speech: bool = True) -> str
         if text:
             parts.append(text)
 
-    raw = "\n".join(parts)
-    return _normalize_text(raw) if normalize_for_speech else _minimal_clean(raw)
+    return "\n".join(parts)
+
+
+def _extract_docx_text(path: Path) -> str:
+    """Extrae texto de un DOCX (párrafos concatenados con saltos de línea)."""
+    doc = Document(path)
+    parts: list[str] = []
+    for paragraph in doc.paragraphs:
+        if paragraph.text:
+            parts.append(paragraph.text)
+    return "\n".join(parts)
 
 
 def _normalize_text(text: str) -> str:
