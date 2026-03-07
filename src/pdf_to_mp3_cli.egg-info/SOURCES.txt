@@ -1,0 +1,13 @@
+README.md
+pyproject.toml
+src/pdf_to_mp3/__init__.py
+src/pdf_to_mp3/cli.py
+src/pdf_to_mp3/pdf_reader.py
+src/pdf_to_mp3/tts_azure.py
+src/pdf_to_mp3/tts_edge.py
+src/pdf_to_mp3_cli.egg-info/PKG-INFO
+src/pdf_to_mp3_cli.egg-info/SOURCES.txt
+src/pdf_to_mp3_cli.egg-info/dependency_links.txt
+src/pdf_to_mp3_cli.egg-info/entry_points.txt
+src/pdf_to_mp3_cli.egg-info/requires.txt
+src/pdf_to_mp3_cli.egg-info/top_level.txt
