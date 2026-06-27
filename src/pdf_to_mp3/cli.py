@@ -4,9 +4,8 @@ from pathlib import Path
 
 import click
 
+from .converter import ConvertOptions, convert_file
 from .pdf_reader import extract_text
-from .tts_azure import text_to_mp3 as text_to_mp3_azure
-from .tts_edge import text_to_mp3 as text_to_mp3_edge
 
 
 def main() -> None:
@@ -196,54 +195,55 @@ def _process_one(
 
     click.echo(f"Leyendo archivo: {pdf_file}")
     try:
-        text = extract_text(pdf_file, normalize_for_speech=not preserve_line_breaks)
-    except Exception as e:
-        click.echo(
-            click.style(f"Error al leer el archivo: {e}", fg="red"), err=True
+        opts = ConvertOptions(
+            engine=engine,
+            voice=voice,
+            api_key=api_key,
+            region=region,
+            preserve_line_breaks=preserve_line_breaks,
+            save_text=save_text,
         )
-        raise SystemExit(1) from e
 
-    if not text.strip():
-        click.echo(
-            click.style("El archivo no contiene texto extraíble.", fg="red"), err=True
-        )
-        raise SystemExit(1)
-
-    if extract_only:
-        out_txt.parent.mkdir(parents=True, exist_ok=True)
-        out_txt.write_text(text, encoding="utf-8")
-        click.echo(
-            click.style(
-                f"Texto extraído: {len(text)} caracteres → {out_txt}", fg="green"
+        if extract_only:
+            text = extract_text(pdf_file, normalize_for_speech=not preserve_line_breaks)
+            if not text.strip():
+                click.echo(
+                    click.style("El archivo no contiene texto extraíble.", fg="red"),
+                    err=True,
+                )
+                raise SystemExit(1)
+            out_txt.parent.mkdir(parents=True, exist_ok=True)
+            out_txt.write_text(text, encoding="utf-8")
+            click.echo(
+                click.style(
+                    f"Texto extraído: {len(text)} caracteres → {out_txt}", fg="green"
+                )
             )
+            return
+
+        def on_progress(message: str, fraction: float) -> None:
+            if "Sintetizando" in message and fraction > 0.15:
+                return
+            click.echo(message)
+
+        result = convert_file(
+            pdf_file,
+            output_mp3=out_mp3,
+            output_txt=out_txt,
+            options=opts,
+            on_progress=on_progress,
         )
-        return
-
-    if save_text:
-        out_txt.parent.mkdir(parents=True, exist_ok=True)
-        out_txt.write_text(text, encoding="utf-8")
-        click.echo(click.style(f"Texto guardado: {out_txt}", fg="cyan"))
-
-    click.echo(
-        f"Texto extraído: {len(text)} caracteres. Sintetizando a MP3 ({engine})..."
-    )
-    try:
-        if engine == "edge-tts":
-            result = text_to_mp3_edge(text, out_mp3, voice=voice)
-        else:
-            result = text_to_mp3_azure(
-                text,
-                out_mp3,
-                key=api_key,
-                region=region,
-                voice=voice,
-            )
+    except SystemExit:
+        raise
     except ValueError as e:
         click.echo(click.style(str(e), fg="red"), err=True)
         raise SystemExit(1) from e
     except RuntimeError as e:
+        click.echo(click.style(f"Error TTS: {e}", fg="red"), err=True)
+        raise SystemExit(1) from e
+    except Exception as e:
         click.echo(
-            click.style(f"Error TTS: {e}", fg="red"), err=True
+            click.style(f"Error al leer el archivo: {e}", fg="red"), err=True
         )
         raise SystemExit(1) from e
 

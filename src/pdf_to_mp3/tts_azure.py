@@ -1,6 +1,7 @@
 """Síntesis de voz con Azure Speech SDK (TTS) a MP3, español latino."""
 
 import os
+from collections.abc import Callable
 from pathlib import Path
 
 import azure.cognitiveservices.speech as speechsdk
@@ -61,6 +62,7 @@ def text_to_mp3(
     key: str | None = None,
     region: str | None = None,
     voice: str | None = None,
+    on_chunk: Callable[[int, int], None] | None = None,
 ) -> Path:
     """
     Convierte texto a audio MP3 usando Azure TTS.
@@ -81,10 +83,13 @@ def text_to_mp3(
     )
     all_audio: list[bytes] = []
 
-    for chunk in chunks:
+    total = len(chunks)
+    for i, chunk in enumerate(chunks):
         result = synthesizer.speak_text_async(chunk).get()
         if result.reason == speechsdk.ResultReason.SynthesizingAudioCompleted:
             all_audio.append(result.audio_data)
+            if on_chunk is not None:
+                on_chunk(i + 1, total)
         elif result.reason == speechsdk.ResultReason.Canceled:
             cancellation = result.cancellation_details
             raise RuntimeError(

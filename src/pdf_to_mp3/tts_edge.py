@@ -2,6 +2,7 @@
 
 import asyncio
 import tempfile
+from collections.abc import Callable
 from pathlib import Path
 
 import edge_tts
@@ -42,16 +43,20 @@ async def _text_to_mp3_async(
     text: str,
     output_path: Path,
     voice: str,
+    on_chunk: Callable[[int, int], None] | None = None,
 ) -> Path:
     """Coroutine: convierte texto a MP3 con edge-tts (chunks + concatenar)."""
     chunks = _chunk_text(text)
     all_audio: list[bytes] = []
+    total = len(chunks)
 
     with tempfile.TemporaryDirectory() as tmpdir:
         for i, chunk in enumerate(chunks):
             chunk_path = Path(tmpdir) / f"chunk_{i}.mp3"
             data = await _synthesize_chunk(chunk, voice, chunk_path)
             all_audio.append(data)
+            if on_chunk is not None:
+                on_chunk(i + 1, total)
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with open(output_path, "wb") as f:
@@ -66,6 +71,7 @@ def text_to_mp3(
     output_path: str | Path,
     *,
     voice: str | None = None,
+    on_chunk: Callable[[int, int], None] | None = None,
 ) -> Path:
     """
     Convierte texto a audio MP3 usando edge-tts (motor de Edge, sin API key).
@@ -77,4 +83,6 @@ def text_to_mp3(
     if not text.strip():
         raise ValueError("El texto está vacío.")
 
-    return asyncio.run(_text_to_mp3_async(text, output_path, voice))
+    return asyncio.run(
+        _text_to_mp3_async(text, output_path, voice, on_chunk=on_chunk)
+    )
