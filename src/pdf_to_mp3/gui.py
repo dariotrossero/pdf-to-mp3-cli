@@ -111,7 +111,7 @@ class PdfToMp3App:
 
         self.transcribe_btn = ttk.Button(
             action_frame,
-            text="Transcribir",
+            text="Convertir a MP3",
             command=self._start_conversion,
         )
         self.transcribe_btn.pack(side=tk.RIGHT)
